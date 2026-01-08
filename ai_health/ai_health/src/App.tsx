@@ -85,6 +85,7 @@ const App = () => {
     readChatHistory,
   );
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [nowTimestamp, setNowTimestamp] = useState(0);
   const [isAtBottom, setIsAtBottom] = useState(true);
   const patientProfileRef = useRef<PatientProfile | null>(null);
   const detailPayloadRef = useRef<unknown>(null);
@@ -142,6 +143,12 @@ const App = () => {
     });
     return () => window.cancelAnimationFrame(raf);
   }, [handleBodyScroll, messages.length, showPatientForm, followUps.length, interactivePrompt]);
+
+  useEffect(() => {
+    if (historyOpen) {
+      setNowTimestamp(Date.now());
+    }
+  }, [historyOpen, chatHistory.length]);
 
   const configReady = Boolean(config.baseUrl && config.appId);
 
@@ -1075,6 +1082,7 @@ const App = () => {
         onClose={() => setHistoryOpen(false)}
         items={chatHistory}
         currentChatId={currentChatId}
+        nowTimestamp={nowTimestamp}
         onSelect={handleSelectHistory}
         onDelete={handleDeleteHistory}
       />

@@ -7,6 +7,7 @@ const HistoryDrawer = ({
   onClose,
   items,
   currentChatId,
+  nowTimestamp,
   onSelect,
   onDelete,
 }: {
@@ -14,6 +15,7 @@ const HistoryDrawer = ({
   onClose: () => void;
   items: ChatHistoryItem[];
   currentChatId: string;
+  nowTimestamp: number;
   onSelect: (chatId: string) => void;
   onDelete: (chatId: string) => void;
 }) => (
@@ -25,8 +27,8 @@ const HistoryDrawer = ({
     width="50%"
   >
     {items.map((item, index) => {
-      const now = Date.now();
       const itemTime = Date.parse(item.lastTime ?? item.createdAt);
+      const now = nowTimestamp || itemTime;
       const ageDays = Math.floor((now - itemTime) / (24 * 60 * 60 * 1000));
       const currentGroup =
         ageDays <= 3
