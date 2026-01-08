@@ -8,6 +8,7 @@ import './App.css';
 import logoImage from './assets/logo.png';
 import doctorImage from './assets/doctor.png';
 import { deleteFastGPTChats, getFastGPTRecords, streamFastGPT } from './lib/fastgpt';
+import { fetchDashscopeASR } from './lib/asr';
 import type { FastGPTMessage } from './lib/fastgpt';
 import { fetchDashscopeTTS } from './lib/tts';
 import FollowUpCarousel from './components/FollowUpCarousel';
@@ -54,6 +55,7 @@ const envConfig = {
   dashscopeApiKey: import.meta.env.VITE_DASHSCOPE_API_KEY ?? '',
   dashscopeVoice: import.meta.env.VITE_DASHSCOPE_VOICE ?? 'Cherry',
   dashscopeBaseUrl: import.meta.env.VITE_DASHSCOPE_BASE_URL ?? '',
+  dashscopeAsrModel: import.meta.env.VITE_DASHSCOPE_ASR_MODEL ?? 'paraformer-realtime-v2'
 };
 
 const App = () => {
@@ -89,10 +91,20 @@ const App = () => {
   const [isAtBottom, setIsAtBottom] = useState(true);
   const patientProfileRef = useRef<PatientProfile | null>(null);
   const detailPayloadRef = useRef<unknown>(null);
+  const [voiceCallActive, setVoiceCallActive] = useState(false);
+  const [voiceCallStatus, setVoiceCallStatus] = useState<'idle' | 'listening' | 'processing' | 'error'>('idle');
+  const [voiceTranscript, setVoiceTranscript] = useState('');
+  const [voiceCallError, setVoiceCallError] = useState<string | null>(null);
   const responseChatItemIdRef = useRef<string | null>(null);
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const bodyRef = useRef<HTMLDivElement | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const mediaStreamRef = useRef<MediaStream | null>(null);
+  const transcriptionQueueRef = useRef(Promise.resolve());
+  const voiceTranscriptRef = useRef('');
+  const voiceCallActiveRef = useRef(false);
+  const lastAutoSpokenRef = useRef<string | null>(null);
   const ttsCacheRef = useRef<Map<string, string>>(new Map());
   const ttsRevokeRef = useRef<Map<string, () => void>>(new Map());
   const handleBodyScroll = useCallback(() => {
@@ -124,6 +136,15 @@ const App = () => {
     patientProfileRef.current = patientProfile;
     persistPatientProfile(patientProfile);
   }, [patientProfile]);
+
+  useEffect(() => {
+    voiceTranscriptRef.current = voiceTranscript;
+  }, [voiceTranscript]);
+
+  useEffect(() => {
+    voiceCallActiveRef.current = voiceCallActive;
+  }, [voiceCallActive]);
+
 
   useEffect(() => {
     const raf = window.requestAnimationFrame(() => {
@@ -834,6 +855,143 @@ const App = () => {
     },
     [config.baseUrl, config.apiKey, config.appId, currentChatId, handleNewChat],
   );
+const reportVoiceCallError = useCallback((message: string) => {
+    setVoiceCallError(message);
+    setVoiceCallStatus('error');
+    if (voiceCallActiveRef.current) {
+      try {
+        mediaRecorderRef.current?.stop();
+      } catch (error) {
+        console.warn('停止录音失败', error);
+      }
+      mediaRecorderRef.current = null;
+      mediaStreamRef.current?.getTracks().forEach((track) => track.stop());
+      mediaStreamRef.current = null;
+      setVoiceCallActive(false);
+      voiceCallActiveRef.current = false;
+    }
+    setMessages((prev) => [
+      ...prev,
+      {
+        id: createId(),
+        role: 'system',
+        content: message,
+        rawText: message,
+      },
+    ]);
+  }, []);
+
+  const enqueueTranscription = useCallback(
+    (audioChunk: Blob) => {
+      if (!audioChunk.size) {
+        return;
+      }
+      transcriptionQueueRef.current = transcriptionQueueRef.current.then(
+        async () => {
+          if (!voiceCallActiveRef.current) {
+            return;
+          }
+          setVoiceCallStatus('processing');
+          try {
+            const text = await fetchDashscopeASR(
+              {
+                apiKey: envConfig.dashscopeApiKey,
+                baseUrl: envConfig.dashscopeBaseUrl,
+                model: envConfig.dashscopeAsrModel,
+              },
+              audioChunk,
+            );
+            if (!voiceCallActiveRef.current) {
+              return;
+            }
+            setVoiceTranscript((prev) => {
+              const next = prev ? `${prev}${text}` : text;
+              voiceTranscriptRef.current = next;
+              return next;
+            });
+            setVoiceCallStatus('listening');
+          } catch (error) {
+            console.warn('ASR 识别失败', error);
+            reportVoiceCallError('语音识别失败，请检查通义千问语音配置。');
+          }
+        },
+      );
+    },
+    [
+      reportVoiceCallError,
+    ],
+  );
+
+  const stopVoiceCall = useCallback(
+    async (silent?: boolean) => {
+      if (!mediaRecorderRef.current && !voiceCallActiveRef.current) {
+        return;
+      }
+      setVoiceCallStatus('processing');
+      try {
+        mediaRecorderRef.current?.stop();
+      } catch (error) {
+        console.warn('停止录音失败', error);
+      }
+      mediaRecorderRef.current = null;
+      mediaStreamRef.current?.getTracks().forEach((track) => track.stop());
+      mediaStreamRef.current = null;
+      setVoiceCallActive(false);
+      voiceCallActiveRef.current = false;
+      await transcriptionQueueRef.current;
+      setVoiceCallStatus('idle');
+      if (!silent) {
+        const finalTranscript = voiceTranscriptRef.current.trim();
+        if (finalTranscript) {
+          sendToFastGPT(finalTranscript, { resetFollowUps: true });
+          setVoiceTranscript('');
+          voiceTranscriptRef.current = '';
+        }
+      }
+    },
+    [sendToFastGPT],
+  );
+
+  const startVoiceCall = useCallback(async () => {
+    if (voiceCallActiveRef.current) {
+      return;
+    }
+    if (!envConfig.dashscopeApiKey) {
+      reportVoiceCallError('请先配置通义千问语音 API Key。');
+      return;
+    }
+    if (!navigator.mediaDevices?.getUserMedia) {
+      reportVoiceCallError('当前浏览器不支持语音通话。');
+      return;
+    }
+
+    try {
+      setVoiceCallError(null);
+      setVoiceTranscript('');
+      voiceTranscriptRef.current = '';
+      setVoiceCallStatus('listening');
+      setVoiceCallActive(true);
+      voiceCallActiveRef.current = true;
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      mediaStreamRef.current = stream;
+      const recorder = new MediaRecorder(stream);
+      recorder.ondataavailable = (event) => enqueueTranscription(event.data);
+      recorder.onerror = () =>
+        reportVoiceCallError('语音采集失败，请检查麦克风权限。');
+      recorder.onstop = () => {
+        if (voiceCallActiveRef.current) {
+          setVoiceCallStatus('idle');
+        }
+      };
+      mediaRecorderRef.current = recorder;
+      recorder.start(1000);
+    } catch (error) {
+      console.warn('启动语音通话失败', error);
+      reportVoiceCallError('启动语音通话失败，请检查麦克风权限。');
+      setVoiceCallActive(false);
+      voiceCallActiveRef.current = false;
+    }
+  }, [enqueueTranscription, reportVoiceCallError]);
 
   const handleSpeak = useCallback(async (content: string) => {
     if (!content) {
@@ -906,6 +1064,24 @@ const App = () => {
       speakWithBrowser();
     }
   }, [speakingText]);
+useEffect(() => {
+    if (!voiceCallActive) {
+      lastAutoSpokenRef.current = null;
+      return;
+    }
+    const lastAiMessage = [...messages]
+      .reverse()
+      .find((message) => message.role === 'ai' && message.rawText);
+    if (!lastAiMessage || lastAiMessage.id === lastAutoSpokenRef.current) {
+      return;
+    }
+    lastAutoSpokenRef.current = lastAiMessage.id;
+    handleSpeak(lastAiMessage.rawText);
+  }, [handleSpeak, messages, voiceCallActive]);
+
+  useEffect(() => () => {
+    void stopVoiceCall(true);
+  }, [stopVoiceCall]);
 
   const actionItems = useCallback(
     (content: string) => [
@@ -1092,6 +1268,12 @@ const App = () => {
         onSubmit={(value) => sendToFastGPT(value, { resetFollowUps: true })}
         loading={sending}
         className={`chat-sender${sending ? ' is-sending' : ''}`}
+        voiceCallActive={voiceCallActive}
+        voiceCallStatus={voiceCallStatus}
+        voiceTranscript={voiceTranscript}
+        voiceCallError={voiceCallError}
+        onStartVoiceCall={startVoiceCall}
+        onStopVoiceCall={() => void stopVoiceCall()}
       />
     </div>
   );
