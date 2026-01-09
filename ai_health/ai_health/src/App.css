@@ -73,10 +73,11 @@
   border-radius: 16px;
   border: 1px solid rgba(31, 31, 31, 0.06);
   padding: 10px;
-  overflow-y: auto;
+  overflow-y: auto !important;
   overscroll-behavior: contain;
   scrollbar-width: none;
   -ms-overflow-style: none;
+  -webkit-overflow-scrolling: touch;
   display: flex;
   flex-direction: column;
   position: relative;
@@ -96,6 +97,7 @@
 .chat-screen__body::-webkit-scrollbar {
   width: 0;
   height: 0;
+  display: none;
 }
 
 .chat-body__header {
@@ -146,8 +148,8 @@
 }
 
 .chat__list {
-  height: auto;
-  overflow: visible;
+  flex: 1 1 auto;
+  min-height: 0;
   padding-right: 4px;
 }
 
@@ -536,29 +538,102 @@
   border-top: 1px solid rgba(31, 31, 31, 0.06);
 }
 
-.chat-sender {
-  background-color: #ffffff !important;
-  border: 1px solid rgba(31, 31, 31, 0.12) !important;
+
+.chat-input-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  justify-content: center;
+}
+
+.chat-input-shell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 10px;
+  flex: 1;
+  width: 100%;
+  max-width: 640px;
+  min-height: 40px;
+  background-color: #ffffff;
+  border: 1px solid rgba(31, 31, 31, 0.12);
   border-radius: 16px;
   box-shadow: 0 6px 16px rgba(15, 76, 129, 0.08);
   transition: box-shadow 0.2s ease, border-color 0.2s ease;
 }
 
-.chat-sender textarea,
-.chat-sender input {
-  font-size: 16px;
+
+
+.chat-input-toggle {
+  width: 40px;
+  height: 40px;
+  min-width: 40px;
+  padding: 0;
+  border-radius: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #ffffff;
+  border: 1px solid rgba(42, 116, 237, 0.35);
+  color: #2a74ed;
+  box-shadow: none;
 }
 
-.chat-sender :where(.ant-sender).ant-sender-focused {
-  border-color: rgba(27, 107, 255, 0.75) !important;
+.chat-input-toggle:hover,
+.chat-input-toggle:focus-visible {
+  border-color: rgba(42, 116, 237, 0.6);
+  color: #2a74ed;
+}
+
+.chat-input-shell--voice {
+  gap: 10px;
+}
+
+
+.chat-input-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+
+.chat-sender--inline :where(.ant-sender) .ant-sender-suffix {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.chat-input-shell:focus-within {
+  border-color: rgba(27, 107, 255, 0.75);
   box-shadow:
     0 0 0 3px rgba(27, 107, 255, 0.22),
     0 10px 24px rgba(15, 76, 129, 0.12);
 }
 
-.chat-sender.is-sending  {
+.chat-input-shell.is-sending {
   border-color: rgba(27, 107, 255, 0.6);
   animation: sender-pulse 1.6s ease-in-out infinite;
+}
+
+.chat-sender--inline {
+  height: 100%;
+  flex: 1;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+.chat-sender--inline :where(.ant-sender) {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  padding: 0;
+}
+
+.chat-sender--inline textarea,
+.chat-sender--inline input {
+  font-size: 16px;
 }
 
 @keyframes sender-pulse {
@@ -583,12 +658,120 @@
   }
 
   .chat-screen__body {
-    padding: 8px;
-    border-radius: 12px;
-  }
+  flex: 1;
+  min-height: 0;
+  background: #f6f8fb;
+  border-radius: 16px;
+  border: 1px solid rgba(31, 31, 31, 0.06);
+  padding: 10px;
+  overflow-y: auto !important;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  -webkit-overflow-scrolling: touch;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
 
   .ai-footer .ant-actions {
     opacity: 1;
     pointer-events: auto;
   }
+}
+
+
+
+.voice-record-btn {
+  width: 100%;
+  border: 1px solid rgba(31, 31, 31, 0.12);
+  border-radius: 14px;
+  background: #ffffff;
+  padding: 14px 16px;
+  font-size: 15px;
+  color: #1f1f1f;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  transition: background 0.2s ease, border-color 0.2s ease;
+}
+
+.voice-record-btn:disabled {
+  opacity: 0.6;
+}
+
+
+.voice-record-btn--inline {
+  flex: 1;
+  border: none;
+  background: transparent;
+  padding: 10px 6px;
+  box-shadow: none;
+}
+
+.voice-record-btn--inline.is-recording {
+  background: rgba(42, 116, 237, 0.12);
+}
+
+.voice-record-btn.is-recording {
+  background: rgba(42, 116, 237, 0.12);
+  border-color: rgba(42, 116, 237, 0.5);
+}
+
+.voice-record-btn__text {
+  font-weight: 600;
+}
+
+.voice-record-btn__wave {
+  display: inline-flex;
+  gap: 4px;
+  align-items: flex-end;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.voice-record-btn__wave span {
+  display: inline-block;
+  width: 4px;
+  height: 8px;
+  border-radius: 4px;
+  background: #2a74ed;
+  animation: wave-pulse 1.1s ease-in-out infinite;
+}
+
+.voice-record-btn__wave span:nth-child(2) {
+  height: 12px;
+  animation-delay: 0.2s;
+}
+
+.voice-record-btn__wave span:nth-child(3) {
+  height: 6px;
+  animation-delay: 0.4s;
+}
+
+@keyframes wave-pulse {
+  0%, 100% {
+    transform: scaleY(0.8);
+    opacity: 0.6;
+  }
+  50% {
+    transform: scaleY(1.4);
+    opacity: 1;
+  }
+}
+
+.chat-sender--inline :where(.ant-sender) .ant-sender-input {
+  padding: 0;
+}
+
+
+
+.chat-screen__footer .chat-input-shell :where(.ant-sender) .ant-sender-content,
+.chat-screen__footer .chat-input-shell .ant-sender .ant-sender-content {
+  padding: 3px !important;
+}
+
+.voice-record-btn.is-recording .voice-record-btn__wave {
+  opacity: 1;
 }

@@ -8,6 +8,11 @@ export default defineConfig({
     host: true,
     allowedHosts: true,
     proxy: {
+      '/api/asr': {
+        target: 'https://dashscope.aliyuncs.com',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api\/asr/, ''),
+      },
       '/api/tts': {
         target: 'https://dashscope.aliyuncs.com',
         changeOrigin: true,

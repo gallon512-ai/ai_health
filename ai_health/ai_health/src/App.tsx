@@ -10,6 +10,7 @@ import doctorImage from './assets/doctor.png';
 import { deleteFastGPTChats, getFastGPTRecords, streamFastGPT } from './lib/fastgpt';
 import type { FastGPTMessage } from './lib/fastgpt';
 import { fetchDashscopeTTS } from './lib/tts';
+import { fetchDashscopeASR } from './lib/asr';
 import FollowUpCarousel from './components/FollowUpCarousel';
 import WelcomePanel from './components/WelcomePanel';
 import AppHeader from './components/AppHeader';
@@ -53,6 +54,8 @@ const envConfig = {
   appId: import.meta.env.VITE_FASTGPT_APP_ID ?? '',
   dashscopeApiKey: import.meta.env.VITE_DASHSCOPE_API_KEY ?? '',
   dashscopeVoice: import.meta.env.VITE_DASHSCOPE_VOICE ?? 'Cherry',
+  dashscopeAsrBaseUrl: import.meta.env.VITE_DASHSCOPE_ASR_BASE_URL ?? '',
+  dashscopeAsrModel: import.meta.env.VITE_DASHSCOPE_ASR_MODEL ?? 'qwen2.5-audio-asr',
   dashscopeBaseUrl: import.meta.env.VITE_DASHSCOPE_BASE_URL ?? '',
 };
 
@@ -87,11 +90,17 @@ const App = () => {
   const [historyOpen, setHistoryOpen] = useState(false);
   const [nowTimestamp, setNowTimestamp] = useState(0);
   const [isAtBottom, setIsAtBottom] = useState(true);
+  const [inputMode, setInputMode] = useState<'text' | 'voice'>('text');
+  const [isRecording, setIsRecording] = useState(false);
+  const [asrLoading, setAsrLoading] = useState(false);
   const patientProfileRef = useRef<PatientProfile | null>(null);
   const detailPayloadRef = useRef<unknown>(null);
   const responseChatItemIdRef = useRef<string | null>(null);
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const bodyRef = useRef<HTMLDivElement | null>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioStreamRef = useRef<MediaStream | null>(null);
+  const audioChunksRef = useRef<BlobPart[]>([]);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const ttsCacheRef = useRef<Map<string, string>>(new Map());
   const ttsRevokeRef = useRef<Map<string, () => void>>(new Map());
@@ -126,6 +135,9 @@ const App = () => {
   }, [patientProfile]);
 
   useEffect(() => {
+    if (!isAtBottom) {
+      return;
+    }
     const raf = window.requestAnimationFrame(() => {
       bottomRef.current?.scrollIntoView({ block: 'end', behavior: 'smooth' });
       const bodyEl = bodyRef.current;
@@ -135,7 +147,7 @@ const App = () => {
       setIsAtBottom(true);
     });
     return () => window.cancelAnimationFrame(raf);
-  }, [messages, sending, showPatientForm, followUps.length, interactivePrompt]);
+  }, [messages, sending, showPatientForm, followUps.length, interactivePrompt, isAtBottom]);
 
   useEffect(() => {
     const raf = window.requestAnimationFrame(() => {
@@ -149,7 +161,6 @@ const App = () => {
       setNowTimestamp(Date.now());
     }
   }, [historyOpen, chatHistory.length]);
-
   const configReady = Boolean(config.baseUrl && config.appId);
 
   useEffect(() => {
@@ -835,6 +846,84 @@ const App = () => {
     [config.baseUrl, config.apiKey, config.appId, currentChatId, handleNewChat],
   );
 
+  const startRecording = useCallback(async () => {
+    if (isRecording || asrLoading) {
+      return;
+    }
+    if (!envConfig.dashscopeApiKey) {
+      return;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      audioStreamRef.current = stream;
+      const recorder = new MediaRecorder(stream);
+      audioChunksRef.current = [];
+      recorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          audioChunksRef.current.push(event.data);
+        }
+      };
+      recorder.onstop = async () => {
+        const mimeType = recorder.mimeType || 'audio/webm';
+        const blob = new Blob(audioChunksRef.current, { type: mimeType });
+        audioChunksRef.current = [];
+        stream.getTracks().forEach((track) => track.stop());
+        audioStreamRef.current = null;
+        setIsRecording(false);
+        if (!blob.size) {
+          return;
+        }
+        try {
+          setAsrLoading(true);
+          const text = await fetchDashscopeASR(
+            {
+              apiKey: envConfig.dashscopeApiKey,
+              baseUrl: envConfig.dashscopeAsrBaseUrl,
+              model: envConfig.dashscopeAsrModel,
+            },
+            blob,
+          );
+          if (text) {
+            setInput('');
+            await sendToFastGPT(text);
+          }
+        } catch (error) {
+          console.warn('ASR 识别失败', error);
+        } finally {
+          setAsrLoading(false);
+        }
+      };
+      recorder.start();
+      mediaRecorderRef.current = recorder;
+      setIsRecording(true);
+    } catch (error) {
+      console.warn('无法开始录音', error);
+      setIsRecording(false);
+    }
+  }, [asrLoading, isRecording, sendToFastGPT]);
+
+  const stopRecording = useCallback(() => {
+    const recorder = mediaRecorderRef.current;
+    if (!recorder) {
+      return;
+    }
+    if (recorder.state !== 'inactive') {
+      recorder.stop();
+    }
+  }, []);
+
+
+  useEffect(() => {
+    if (inputMode === 'text' && isRecording) {
+      stopRecording();
+    }
+  }, [inputMode, isRecording, stopRecording]);
+
+
+  const handleToggleInputMode = useCallback(() => {
+    setInputMode((prev) => (prev === 'text' ? 'voice' : 'text'));
+  }, []);
+
   const handleSpeak = useCallback(async (content: string) => {
     if (!content) {
       return;
@@ -1092,6 +1181,12 @@ const App = () => {
         onSubmit={(value) => sendToFastGPT(value, { resetFollowUps: true })}
         loading={sending}
         className={`chat-sender${sending ? ' is-sending' : ''}`}
+        mode={inputMode}
+        onToggleMode={handleToggleInputMode}
+        onRecordStart={startRecording}
+        onRecordEnd={stopRecording}
+        recording={isRecording}
+        asrLoading={asrLoading}
       />
     </div>
   );
