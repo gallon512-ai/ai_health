@@ -854,6 +854,18 @@ const App = () => {
       return;
     }
     try {
+      if (!navigator.mediaDevices?.getUserMedia) {
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: createId(),
+            role: 'system',
+            content: '当前环境不支持麦克风录音，请使用 HTTPS 访问或换用支持的浏览器。',
+            rawText: '当前环境不支持麦克风录音，请使用 HTTPS 访问或换用支持的浏览器。',
+          },
+        ]);
+        return;
+      }
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       audioStreamRef.current = stream;
       const recorder = new MediaRecorder(stream);
