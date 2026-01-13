@@ -17,6 +17,7 @@ import AppHeader from './components/AppHeader';
 import ChatBubbleList from './components/ChatBubbleList';
 import ChatHeader from './components/ChatHeader';
 import ChatFooter from './components/ChatFooter';
+import DeptDoctorCardList from './components/DeptDoctorCardList';
 import HistoryDrawer from './components/HistoryDrawer';
 import InteractivePromptCard from './components/InteractivePromptCard';
 import PatientRegisterCard from './components/PatientRegisterCard';
@@ -47,6 +48,22 @@ import type {
   InteractivePrompt,
   PatientProfile,
 } from './types/chat';
+
+
+
+const shouldAttachDeptCard = (statusName: string | null) =>
+  statusName === '文本内容提取';
+
+const extractDeptCode = (payload: unknown) => {
+  if (!payload || typeof payload !== 'object') {
+    return null;
+  }
+  const record = payload as {
+    nodeOutputs?: Array<{ key?: string; value?: unknown }>;
+  };
+  const match = record.nodeOutputs?.find((item) => item.key === 'dept_code');
+  return typeof match?.value === 'string' ? match.value : null;
+};
 
 const envConfig = {
   baseUrl: import.meta.env.VITE_FASTGPT_BASE_URL ?? '',
@@ -104,6 +121,7 @@ const App = () => {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const ttsCacheRef = useRef<Map<string, string>>(new Map());
   const ttsRevokeRef = useRef<Map<string, () => void>>(new Map());
+  const lastFlowStatusRef = useRef<string | null>(null);
   const handleBodyScroll = useCallback(() => {
     const bodyEl = bodyRef.current;
     if (!bodyEl) {
@@ -404,6 +422,30 @@ const App = () => {
               );
             },
             onInteractive: (payload) => {
+              const deptCode = extractDeptCode(payload);
+              if (deptCode && shouldAttachDeptCard(lastFlowStatusRef.current)) {
+                lastFlowStatusRef.current = null;
+                setMessages((prev) => {
+                  const next = [...prev];
+                  for (let i = next.length - 1; i >= 0; i -= 1) {
+                    if (next[i].role === 'ai') {
+                      if (next[i].deptCode === deptCode) {
+                        return prev;
+                      }
+                      next[i] = { ...next[i], deptCode };
+                      return next;
+                    }
+                  }
+                  next.push({
+                    id: createId(),
+                    role: 'ai',
+                    content: '',
+                    rawText: '',
+                    deptCode,
+                  });
+                  return next;
+                });
+              }
               const data = payload as {
                 type?: string;
                 params?: {
@@ -443,8 +485,16 @@ const App = () => {
                 });
               }
             },
-            onEvent: (_eventName, payload) => {
+            onEvent: (eventName, payload) => {
               const candidate = payload as Record<string, unknown>;
+
+              if (eventName === 'flowNodeStatus') {
+                const statusName =
+                  typeof candidate?.name === 'string' ? candidate.name : null;
+                if (statusName) {
+                  lastFlowStatusRef.current = statusName;
+                }
+              }
               if (typeof candidate?.responseChatItemId === 'string') {
                 responseChatItemIdRef.current = candidate.responseChatItemId;
               }
@@ -1034,12 +1084,26 @@ const App = () => {
                 <XMarkdown content={message.content} className="ai-markdown" />
               )
             : message.content;
+        const doctorList = message.deptCode ? (
+          <DeptDoctorCardList
+            deptCode={message.deptCode}
+            title={`为您推荐 ${message.deptCode} 医生`}
+          />
+        ) : null;
+        const combinedContent = doctorList ? (
+          <div className="ai-card-stack">
+            {renderedContent}
+            {doctorList}
+          </div>
+        ) : (
+          renderedContent
+        );
 
         return {
           key: message.id,
           role: message.role === 'ai' ? 'ai' : message.role,
           placement: message.role === 'user' ? 'end' : 'start',
-          content: followupContent ?? renderedContent,
+          content: followupContent ?? combinedContent,
           loading: message.loading,
           classNames: {
             content: message.role === 'user' ? 'bubble-user' : 'bubble-ai',

@@ -785,3 +785,58 @@
 
 
 
+
+
+.dept-doctor-list {
+  margin: 12px 0;
+  padding: 12px;
+  border-radius: 12px;
+  background: #f2f7ff;
+  border: 1px solid rgba(15, 76, 129, 0.12);
+}
+
+.dept-doctor-list__title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #0f4c81;
+  margin-bottom: 10px;
+}
+
+.dept-doctor-list__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 10px;
+}
+
+.dept-doctor-card {
+  background: #ffffff;
+  border-radius: 10px;
+  padding: 10px 12px;
+  border: 1px solid rgba(15, 76, 129, 0.1);
+  box-shadow: 0 6px 12px rgba(15, 76, 129, 0.08);
+}
+
+.dept-doctor-card__name {
+  font-size: 14px;
+  font-weight: 600;
+  color: #0f4c81;
+  margin-bottom: 4px;
+}
+
+.dept-doctor-card__title {
+  font-size: 12px;
+  color: #5b6b7b;
+  margin-bottom: 6px;
+}
+
+.dept-doctor-card__desc {
+  font-size: 12px;
+  color: #6b7280;
+  line-height: 1.4;
+}
+
+.ai-card-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}

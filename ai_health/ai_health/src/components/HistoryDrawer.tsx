@@ -34,8 +34,8 @@ const HistoryDrawer = ({
         ageDays <= 3
           ? new Date(itemTime).toLocaleDateString('zh-CN')
           : ageDays <= 30
-            ? '7天前到1个月前'
-            : '30天前';
+            ? '7天前到1个月内'
+            : '一个月前';
       const prevTime =
         index > 0
           ? Date.parse(items[index - 1].lastTime ?? items[index - 1].createdAt)
@@ -50,8 +50,8 @@ const HistoryDrawer = ({
           : prevAgeDays <= 3
             ? new Date(prevTime as number).toLocaleDateString('zh-CN')
             : prevAgeDays <= 30
-              ? '7天前到1个月前'
-              : '30天前';
+              ? '7天前到1个月内'
+              : '一个月前';
       const showDivider = currentGroup !== prevGroup;
       return (
         <div key={item.id}>

@@ -8,6 +8,7 @@ export type ChatMessage = {
   content: ReactNode;
   rawText: string;
   loading?: boolean;
+  deptCode?: string;
   followUpSnapshot?: {
     questions: FollowUpQuestion[];
     answers: Array<{ id: number; answer: string }>;
