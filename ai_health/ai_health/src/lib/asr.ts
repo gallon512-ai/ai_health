@@ -25,7 +25,7 @@ const guessMime = (blob: Blob) => {
 };
 
 export const fetchDashscopeASR = async (config: ASRConfig, audio: Blob) => {
-  const apiPath = '/chat/completions';
+  const apiPath = '/compatible-mode/v1/chat/completions';
   const baseUrl = config.baseUrl ?? '';
   const url = baseUrl
     ? `${normalizeBaseUrl(baseUrl)}${apiPath}`
@@ -39,7 +39,6 @@ export const fetchDashscopeASR = async (config: ASRConfig, audio: Blob) => {
   const response = await fetch(url, {
     method: 'POST',
     headers: {
-      Authorization: `Bearer ${config.apiKey}`,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({

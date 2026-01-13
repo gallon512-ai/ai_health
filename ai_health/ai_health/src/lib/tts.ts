@@ -17,7 +17,6 @@ export const fetchDashscopeTTS = async (config: TTSConfig, text: string) => {
   const response = await fetch(url, {
     method: 'POST',
     headers: {
-      Authorization: `Bearer ${config.apiKey}`,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
