@@ -8,6 +8,7 @@ export type FastGPTConfig = {
   apiKey?: string;
   appId: string;
   chatId?: string;
+  variables?: Record<string, string>;
 };
 
 export type FastGPTRecord = {
@@ -52,6 +53,7 @@ export const requestFastGPT = async (
       ...(config.chatId ? { chatId: config.chatId } : {}),
       messages,
       stream: false,
+      variables: config.variables ?? {},
     }),
   });
 
@@ -82,7 +84,7 @@ export const getFastGPTRecords = async (
     appId: string;
   },
 ) => {
-  const url = `${normalizeBaseUrl(config.baseUrl)}/api/core/chat/getRecords_v2`;
+  const url = `${normalizeBaseUrl(config.baseUrl)}/api/core/chat/record/getRecords_v2`;
   const response = await fetch(url, {
     method: 'POST',
     headers: {
@@ -95,6 +97,7 @@ export const getFastGPTRecords = async (
       chatId: params.chatId,
       appId: params.appId,
       retainDatasetCite: false,
+      variables: config.variables ?? {},
     }),
   });
 
@@ -234,6 +237,7 @@ export const streamFastGPT = async (
       stream: true,
       detail: true,
       retainDatasetCite: false,
+      variables: config.variables ?? {},
     }),
   });
 

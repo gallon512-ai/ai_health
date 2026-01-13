@@ -654,7 +654,7 @@
 
 @media (max-width: 640px) {
   .chat-screen {
-    padding: 16px 12px 20px;
+    padding: 16px 12px 5px;
   }
 
   .chat-screen__body {
@@ -775,3 +775,13 @@
 .voice-record-btn.is-recording .voice-record-btn__wave {
   opacity: 1;
 }
+
+.chat-screen__copyright {
+  text-align: center;
+  font-size: 11px;
+  color: rgba(31, 31, 31, 0.45);
+  padding: 2px 0 4px;
+}
+
+
+

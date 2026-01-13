@@ -8,6 +8,11 @@ export default defineConfig({
     host: true,
     allowedHosts: true,
     proxy: {
+      '/api/fastgpt': {
+        target: 'https://cloud.fastgpt.cn',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api\/fastgpt/, ''),
+      },
       '/api/asr': {
         target: 'https://dashscope.aliyuncs.com',
         changeOrigin: true,

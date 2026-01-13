@@ -348,23 +348,8 @@ const App = () => {
       try {
         let suppressStreamRender = false;
         let decidedStreamRender = false;
-        const baseHistory = options?.skipHistory
-          ? userMessage
-            ? [userMessage]
-            : []
-          : userMessage
-            ? [...messages, userMessage]
-            : messages;
-        const history: FastGPTMessage[] = baseHistory
-          .filter((msg) => msg.role !== 'system')
-          .map((msg) => ({
-            role: msg.role === 'ai' ? 'assistant' : msg.role,
-            content: msg.rawText,
-          }));
         const detailMessage = buildDetailMessage(content);
-        const requestMessages: FastGPTMessage[] = interactiveOnly
-          ? ([detailMessage] as FastGPTMessage[])
-          : history;
+        const requestMessages: FastGPTMessage[] = [detailMessage] as FastGPTMessage[];
         const baseDetailPayload =
           (options?.detailPayload as DetailPayload | undefined) ?? undefined;
         const mergedDetailPayload =
@@ -378,12 +363,19 @@ const App = () => {
                     : baseDetailPayload.responseChatItemId,
               }
             : baseDetailPayload;
+        const profile = patientProfileRef.current ?? patientProfile ?? patientForm;
+        const variables = {
+          sex: profile?.gender ?? '',
+          age: profile?.age ?? '',
+        };
+
         const answer = await streamFastGPT(
           {
             baseUrl: config.baseUrl,
             apiKey: config.apiKey,
             appId: config.appId,
             chatId: chatIdRef.current ?? conversationId,
+            variables,
           },
           requestMessages,
           {
@@ -539,9 +531,10 @@ const App = () => {
       conversationId,
       currentChatId,
       input,
-      messages,
       sending,
       showWelcome,
+      patientProfile,
+      patientForm,
     ],
   );
 
@@ -1200,6 +1193,9 @@ const App = () => {
         recording={isRecording}
         asrLoading={asrLoading}
       />
+      <div className="chat-screen__copyright">
+        © 沈阳佳祺软件科技有限公司
+      </div>
     </div>
   );
 };
